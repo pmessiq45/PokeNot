@@ -12,6 +12,9 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Google Identity Services (OAuth) -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Firebase Core & Firestore (Compatibility Version) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <!-- Custom Stylesheet -->
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -46,7 +49,11 @@
           <button id="tab-settings" class="nav-btn" onclick="switchTab('settings')">
             <i class="fa-solid fa-gear"></i> Configurações
           </button>
-        </nav>
+        <div class="db-status-wrapper">
+          <span class="db-status-badge offline" id="header-db-status">
+            <i class="fa-solid fa-cloud-sun"></i> Modo Local
+          </span>
+        </div>
 
         <div class="user-profile">
           <div class="user-info">
@@ -124,6 +131,7 @@
             </div>
 
             <div class="login-footer">
+              <p id="login-db-status" class="login-db-status">Banco de Dados: <span class="offline"><i class="fa-solid fa-cloud-sun"></i> Modo Local</span></p>
               <p>Coleção protegida localmente <i class="fa-solid fa-shield-halved"></i></p>
             </div>
           </div>

@@ -3,6 +3,158 @@
    ========================================================================== */
 const GOOGLE_CLIENT_ID = "SEU_CLIENT_ID_DO_GOOGLE.apps.googleusercontent.com"; // Insira aqui seu Client ID real do Google Cloud Console
 
+// Credenciais do Firebase Firestore (Insira aqui as chaves do seu projeto Firebase)
+const firebaseConfig = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+
+// Detecção de status de banco de dados
+let db = null;
+let isFirebaseActive = false;
+
+// Inicializa a conexão com o Firebase Firestore se configurado
+function initFirebase() {
+  if (firebaseConfig.apiKey && firebaseConfig.projectId) {
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+      isFirebaseActive = true;
+      console.log("Firebase Firestore ativado com sucesso!");
+    } catch (e) {
+      console.error("Erro ao conectar no Firebase Firestore:", e);
+    }
+  } else {
+    console.log("Firebase não configurado. Operando em Modo Local (localStorage).");
+  }
+  updateDbStatusUI();
+}
+
+// Atualiza os indicadores de conexão na tela
+function updateDbStatusUI() {
+  const headerBadge = document.getElementById("header-db-status");
+  const loginBadge = document.querySelector("#login-db-status span");
+  
+  const bgClass = isFirebaseActive ? "online" : "offline";
+  const icon = isFirebaseActive ? "fa-solid fa-cloud" : "fa-solid fa-cloud-sun";
+  const text = isFirebaseActive ? "Nuvem Ativa" : "Modo Local";
+  
+  if (headerBadge) {
+    headerBadge.className = `db-status-badge ${bgClass}`;
+    headerBadge.innerHTML = `<i class="${icon}"></i> ${text}`;
+  }
+  
+  if (loginBadge) {
+    loginBadge.className = bgClass;
+    loginBadge.innerHTML = `<i class="${icon}"></i> ${text}`;
+  }
+}
+
+// --- Funções Auxiliares de Abstração do Banco de Dados ---
+
+// Busca usuários cadastrados
+async function dbGetUsers() {
+  if (isFirebaseActive) {
+    try {
+      const snapshot = await db.collection("users").get();
+      const users = {};
+      snapshot.forEach(doc => {
+        users[doc.id] = doc.data();
+      });
+      return users;
+    } catch (e) {
+      console.error("Erro ao buscar usuários do Firestore:", e);
+    }
+  }
+  return JSON.parse(localStorage.getItem("pokenot_users")) || {};
+}
+
+// Salva um usuário
+async function dbSaveUser(username, userData) {
+  if (isFirebaseActive) {
+    try {
+      await db.collection("users").doc(username).set(userData);
+      return;
+    } catch (e) {
+      console.error("Erro ao salvar usuário no Firestore:", e);
+    }
+  }
+  const users = JSON.parse(localStorage.getItem("pokenot_users")) || {};
+  users[username] = userData;
+  localStorage.setItem("pokenot_users", JSON.stringify(users));
+}
+
+// Busca propostas de trocas do mercado
+async function dbGetMarketTrades() {
+  if (isFirebaseActive) {
+    try {
+      const snapshot = await db.collection("trades").get();
+      const trades = [];
+      snapshot.forEach(doc => {
+        trades.push(doc.data());
+      });
+      // Ordenar por data decrescente localmente
+      return trades.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    } catch (e) {
+      console.error("Erro ao obter propostas do Firestore:", e);
+    }
+  }
+  return JSON.parse(localStorage.getItem("pokenot_market_trades")) || [];
+}
+
+// Adiciona uma nova proposta de troca no mercado
+async function dbAddTrade(trade) {
+  trade.timestamp = Date.now();
+  if (isFirebaseActive) {
+    try {
+      await db.collection("trades").doc(trade.id).set(trade);
+      return;
+    } catch (e) {
+      console.error("Erro ao salvar troca no Firestore:", e);
+    }
+  }
+  const trades = JSON.parse(localStorage.getItem("pokenot_market_trades")) || [];
+  trades.unshift(trade);
+  localStorage.setItem("pokenot_market_trades", JSON.stringify(trades));
+}
+
+// Cancela uma proposta de troca ativa do usuário
+async function dbCancelTrade(tradeId) {
+  if (isFirebaseActive) {
+    try {
+      await db.collection("trades").doc(tradeId).delete();
+      return;
+    } catch (e) {
+      console.error("Erro ao excluir troca no Firestore:", e);
+    }
+  }
+  let trades = JSON.parse(localStorage.getItem("pokenot_market_trades")) || [];
+  trades = trades.filter(t => t.id !== tradeId);
+  localStorage.setItem("pokenot_market_trades", JSON.stringify(trades));
+}
+
+// Conclui uma troca no mercado de trocas
+async function dbCompleteTrade(tradeId, trade) {
+  if (isFirebaseActive) {
+    try {
+      await db.collection("trades").doc(tradeId).update({ status: "completed" });
+      return;
+    } catch (e) {
+      console.error("Erro ao concluir troca no Firestore:", e);
+    }
+  }
+  let trades = JSON.parse(localStorage.getItem("pokenot_market_trades")) || [];
+  const idx = trades.findIndex(t => t.id === tradeId);
+  if (idx !== -1) {
+    trades[idx].status = "completed";
+    localStorage.setItem("pokenot_market_trades", JSON.stringify(trades));
+  }
+}
+
 let currentUser = null;
 let currentTab = "binder";
 let currentPage = 1;
@@ -51,6 +203,7 @@ function initMarketTrades() {
    INITIALIZATION & EVENT LISTENERS
    ========================================================================== */
 document.addEventListener("DOMContentLoaded", () => {
+  initFirebase();
   initMarketTrades();
   initGoogleSignIn();
   checkSession();
@@ -85,10 +238,10 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // Verifica se já existe um usuário logado na sessão ativa
-function checkSession() {
+async function checkSession() {
   const sessionUser = sessionStorage.getItem("pokenot_current_user");
   if (sessionUser) {
-    loginUser(sessionUser);
+    await loginUser(sessionUser);
   } else {
     showScreen("login");
   }
@@ -178,7 +331,7 @@ async function simulateGoogleLogin() {
 
 // Registra e faz o login do usuário autenticado por rede social
 async function loginOrRegisterGoogleUser(email, name, picture) {
-  const users = JSON.parse(localStorage.getItem("pokenot_users")) || {};
+  const users = await dbGetUsers();
   
   // O nome de usuário interno será derivado do email
   const username = email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -199,10 +352,9 @@ async function loginOrRegisterGoogleUser(email, name, picture) {
         }
       ]
     };
-    localStorage.setItem("pokenot_users", JSON.stringify(users));
+    await dbSaveUser(username, users[username]);
 
     // Inicializar fichário vazio com 36 slots
-    const keyCollection = `pokenot_collection_${username}`;
     const emptyCollection = new Array(36).fill(null);
     emptyCollection[0] = {
       name: "Pikachu",
@@ -213,19 +365,27 @@ async function loginOrRegisterGoogleUser(email, name, picture) {
       shiny: false,
       notes: "Meu primeiro card Pokémon!"
     };
-    localStorage.setItem(keyCollection, JSON.stringify(emptyCollection));
+    
+    // Configurar temporariamente viewedUser como null para permitir a gravação inicial correta
+    const oldViewed = viewedUser;
+    viewedUser = null;
+    const oldCurrentUser = currentUser;
+    currentUser = username;
+    await saveCollection(emptyCollection);
+    viewedUser = oldViewed;
+    currentUser = oldCurrentUser;
   } else {
     // Sincronizar dados mais recentes do Google
     users[username].email = email;
     users[username].fullName = name;
     if (picture) users[username].avatarUrl = picture;
     users[username].isGoogleUser = true;
-    localStorage.setItem("pokenot_users", JSON.stringify(users));
+    await dbSaveUser(username, users[username]);
   }
   
   sessionStorage.setItem("pokenot_current_user", username);
-  loginUser(username);
-  addLogEntry("sistema", "Sessão iniciada via Google.");
+  await loginUser(username);
+  await addLogEntry("sistema", "Sessão iniciada via Google.");
   showToast(`Bem-vindo, Treinador ${name}!`, "success");
 }
 
@@ -262,7 +422,7 @@ async function handleSignIn(e) {
   const passwordInput = document.getElementById("signin-password").value;
   const signinError = document.getElementById("signin-error");
 
-  const users = JSON.parse(localStorage.getItem("pokenot_users")) || {};
+  const users = await dbGetUsers();
 
   if (users[usernameInput]) {
     const hashedInput = await hashPassword(passwordInput);
@@ -272,13 +432,13 @@ async function handleSignIn(e) {
       // Migração automática de senhas antigas para hash SHA-256
       if (storedPwd === passwordInput) {
         users[usernameInput].password = hashedInput;
-        localStorage.setItem("pokenot_users", JSON.stringify(users));
+        await dbSaveUser(usernameInput, users[usernameInput]);
       }
       
       signinError.classList.add("hidden");
       sessionStorage.setItem("pokenot_current_user", usernameInput);
-      loginUser(usernameInput);
-      addLogEntry("sistema", "Acesso efetuado no sistema.");
+      await loginUser(usernameInput);
+      await addLogEntry("sistema", "Acesso efetuado no sistema.");
       showToast("Bem-vindo de volta, Treinador!", "success");
       return;
     }
@@ -294,7 +454,7 @@ async function handleSignUp(e) {
   const passwordInput = document.getElementById("signup-password").value;
   const signupError = document.getElementById("signup-error");
 
-  const users = JSON.parse(localStorage.getItem("pokenot_users")) || {};
+  const users = await dbGetUsers();
 
   if (users[usernameInput]) {
     signupError.textContent = "Nome de usuário já está em uso.";
@@ -313,13 +473,10 @@ async function handleSignUp(e) {
         }
       ]
     };
-    localStorage.setItem("pokenot_users", JSON.stringify(users));
+    await dbSaveUser(usernameInput, users[usernameInput]);
 
     // Inicializar fichário vazio com 36 slots
-    const keyCollection = `pokenot_collection_${usernameInput}`;
     const emptyCollection = new Array(36).fill(null);
-    
-    // Adicionar um Pikachu de exemplo clássico
     emptyCollection[0] = {
       name: "Pikachu",
       imageUrl: "https://images.pokemontcg.io/xy12/35.png",
@@ -330,16 +487,23 @@ async function handleSignUp(e) {
       notes: "Meu primeiro card Pokémon!"
     };
     
-    localStorage.setItem(keyCollection, JSON.stringify(emptyCollection));
+    // Configurar temporariamente viewedUser como null para permitir a gravação inicial correta
+    const oldViewed = viewedUser;
+    viewedUser = null;
+    const oldCurrentUser = currentUser;
+    currentUser = usernameInput;
+    await saveCollection(emptyCollection);
+    viewedUser = oldViewed;
+    currentUser = oldCurrentUser;
 
     signupError.classList.add("hidden");
     sessionStorage.setItem("pokenot_current_user", usernameInput);
-    loginUser(usernameInput);
+    await loginUser(usernameInput);
     showToast("Conta criada com sucesso! Fichário pronto.", "success");
   }
 }
 
-function loginUser(username) {
+async function loginUser(username) {
   currentUser = username;
   viewedUser = null;
   document.getElementById("binder-readonly-banner").classList.add("hidden");
@@ -348,7 +512,7 @@ function loginUser(username) {
   const organizeBtn = document.querySelector("#screen-binder .toolbar-left button");
   if (organizeBtn) organizeBtn.style.display = "inline-flex";
   
-  const users = JSON.parse(localStorage.getItem("pokenot_users")) || {};
+  const users = await dbGetUsers();
   const user = users[username] || {};
 
   // Atualizar Header
@@ -367,7 +531,7 @@ function loginUser(username) {
 
   // Resetar visualização
   currentPage = 1;
-  switchTab("binder");
+  await switchTab("binder");
 }
 
 // Evento de Logout
@@ -394,7 +558,7 @@ function showScreen(screen) {
   });
 }
 
-function switchTab(tab) {
+async function switchTab(tab) {
   currentTab = tab;
   const btnBinder = document.getElementById("tab-binder");
   const btnTrade = document.getElementById("tab-trade");
@@ -408,41 +572,60 @@ function switchTab(tab) {
   if (tab === "binder") {
     if (btnBinder) btnBinder.classList.add("active");
     showScreen("binder");
-    renderBinderGrid();
+    await renderBinderGrid();
   } else if (tab === "trade") {
     if (btnTrade) btnTrade.classList.add("active");
     showScreen("trade");
-    loadTradeTab();
+    await loadTradeTab();
   } else if (tab === "community") {
     if (btnCommunity) btnCommunity.classList.add("active");
     showScreen("community");
-    loadCommunityTab();
+    await loadCommunityTab();
   } else if (tab === "settings") {
     if (btnSettings) btnSettings.classList.add("active");
     showScreen("settings");
-    loadSettingsTab();
+    await loadSettingsTab();
   }
 }
 
 /* ==========================================================================
    FICHÁRIO (BINDER) RENDERING & CONTROLS
    ========================================================================== */
-function getCollection() {
-  const targetUser = viewedUser || currentUser;
+async function getCollection(target = null) {
+  const targetUser = target || viewedUser || currentUser;
+  if (isFirebaseActive) {
+    try {
+      const doc = await db.collection("collections").doc(targetUser).get();
+      if (doc.exists) {
+        return doc.data().slots || new Array(36).fill(null);
+      }
+      return new Array(36).fill(null);
+    } catch (e) {
+      console.error("Erro ao obter coleção do Firestore:", e);
+    }
+  }
   const key = `pokenot_collection_${targetUser}`;
   return JSON.parse(localStorage.getItem(key)) || new Array(36).fill(null);
 }
 
 // Salva a coleção
-function saveCollection(collection) {
+async function saveCollection(collection) {
   if (viewedUser) return; // Segurança: impede gravação no fichário de terceiros
+  if (isFirebaseActive) {
+    try {
+      await db.collection("collections").doc(currentUser).set({ slots: collection });
+      return;
+    } catch (e) {
+      console.error("Erro ao salvar coleção no Firestore:", e);
+    }
+  }
   const key = `pokenot_collection_${currentUser}`;
   localStorage.setItem(key, JSON.stringify(collection));
 }
 
 // Renderiza a grade de cartas 4x3 (6 cards na esquerda e 6 na direita)
-function renderBinderGrid() {
-  const collection = getCollection();
+async function renderBinderGrid() {
+  const collection = await getCollection();
   const leftGrid = document.getElementById("grid-left-slots");
   const rightGrid = document.getElementById("grid-right-slots");
   
@@ -554,8 +737,8 @@ function createSlotElement(card, slotIdx, searchQuery, filterType) {
 }
 
 // Trocar páginas do fichário
-function changePage(direction) {
-  const collection = getCollection();
+async function changePage(direction) {
+  const collection = await getCollection();
   const maxPages = Math.ceil(collection.length / SLOTS_PER_PAGE);
 
   if (currentPage + direction < 1) {
@@ -566,21 +749,21 @@ function changePage(direction) {
   if (currentPage + direction > maxPages) {
     const newSlots = new Array(SLOTS_PER_PAGE).fill(null);
     const newCollection = [...collection, ...newSlots];
-    saveCollection(newCollection);
+    await saveCollection(newCollection);
     showToast("Novas páginas foram adicionadas ao fichário!", "success");
   }
 
   currentPage += direction;
-  renderBinderGrid();
+  await renderBinderGrid();
 }
 
-function filterBinder() {
-  renderBinderGrid();
+async function filterBinder() {
+  await renderBinderGrid();
 }
 
 // Reorganiza a sequência eliminando espaços vazios entre os cards
-function organizeBinder() {
-  const collection = getCollection();
+async function organizeBinder() {
+  const collection = await getCollection();
   const activeCards = collection.filter(card => card !== null);
 
   if (activeCards.length === 0) {
@@ -595,10 +778,10 @@ function organizeBinder() {
     newCollection.push(null);
   }
 
-  saveCollection(newCollection);
-  addLogEntry("edição", "Reorganizou a sequência dos cards do fichário para remover espaços vazios.");
+  await saveCollection(newCollection);
+  await addLogEntry("edição", "Reorganizou a sequência dos cards do fichário para remover espaços vazios.");
   currentPage = 1;
-  renderBinderGrid();
+  await renderBinderGrid();
   showToast("Fichário reorganizado! Espaços vazios foram removidos.", "success");
 }
 
@@ -658,11 +841,11 @@ function openAddCardModal(slotIdx) {
   document.getElementById("modal-add-card").classList.remove("hidden");
 }
 
-function openEditCardModal(slotIdx) {
+async function openEditCardModal(slotIdx) {
   activeSlotIndex = slotIdx;
   document.getElementById("edit-slot-index").textContent = slotIdx + 1;
   
-  const collection = getCollection();
+  const collection = await getCollection();
   const card = collection[slotIdx];
 
   if (!card) return;
@@ -918,7 +1101,7 @@ function handleLocalFileSelect(mode) {
 }
 
 // Salva o novo card no Fichário
-function saveNewCard(e) {
+async function saveNewCard(e) {
   e.preventDefault();
   const name = document.getElementById("add-card-name").value.trim();
   const imageUrl = document.getElementById("add-card-image").value.trim();
@@ -940,18 +1123,18 @@ function saveNewCard(e) {
     notes
   };
 
-  const collection = getCollection();
+  const collection = await getCollection();
   collection[activeSlotIndex] = newCard;
-  saveCollection(collection);
-  addLogEntry("registro", `Registrou o card "${name}" (${set || "Sem Coleção"}) no Slot ${activeSlotIndex + 1}.`);
+  await saveCollection(collection);
+  await addLogEntry("registro", `Registrou o card "${name}" (${set || "Sem Coleção"}) no Slot ${activeSlotIndex + 1}.`);
 
   closeModal('add');
-  renderBinderGrid();
+  await renderBinderGrid();
   showToast(`${name} registrado no Fichário!`, "success");
 }
 
 // Salva as alterações feitas no card selecionado
-function saveEditedCard(e) {
+async function saveEditedCard(e) {
   e.preventDefault();
   const name = document.getElementById("edit-card-name").value.trim();
   const imageUrl = document.getElementById("edit-card-image").value.trim();
@@ -962,11 +1145,11 @@ function saveEditedCard(e) {
   const shiny = document.getElementById("edit-card-shiny").checked;
   const notes = document.getElementById("edit-card-notes").value.trim();
 
-  const collection = getCollection();
+  const collection = await getCollection();
 
   if (quantity <= 0) {
     collection[activeSlotIndex] = null;
-    addLogEntry("exclusão", `Removeu o card "${name}" do Slot ${activeSlotIndex + 1} (Quantidade zerada).`);
+    await addLogEntry("exclusão", `Removeu o card "${name}" do Slot ${activeSlotIndex + 1} (Quantidade zerada).`);
     showToast(`${name} removido do fichário.`, "warning");
   } else {
     collection[activeSlotIndex] = {
@@ -979,29 +1162,29 @@ function saveEditedCard(e) {
       shiny,
       notes
     };
-    addLogEntry("edição", `Atualizou as informações do card "${name}" (${set || "Sem Coleção"}) no Slot ${activeSlotIndex + 1}.`);
+    await addLogEntry("edição", `Atualizou as informações do card "${name}" (${set || "Sem Coleção"}) no Slot ${activeSlotIndex + 1}.`);
     showToast(`Alterações em ${name} salvas!`, "success");
   }
 
-  saveCollection(collection);
+  await saveCollection(collection);
   closeModal('edit');
-  renderBinderGrid();
+  await renderBinderGrid();
 }
 
 // Esvazia por completo o slot
-function deleteCardFromSlot() {
+async function deleteCardFromSlot() {
   if (activeSlotIndex === null) return;
   
-  const collection = getCollection();
+  const collection = await getCollection();
   const cardName = collection[activeSlotIndex]?.name || "Card";
 
   if (confirm(`Tem certeza que deseja esvaziar o Slot ${activeSlotIndex + 1}?`)) {
     collection[activeSlotIndex] = null;
-    saveCollection(collection);
-    addLogEntry("exclusão", `Removeu o card "${cardName}" do Slot ${activeSlotIndex + 1}.`);
+    await saveCollection(collection);
+    await addLogEntry("exclusão", `Removeu o card "${cardName}" do Slot ${activeSlotIndex + 1}.`);
     
     closeModal('edit');
-    renderBinderGrid();
+    await renderBinderGrid();
     showToast(`${cardName} removido do fichário.`, "danger");
   }
 }
@@ -1009,15 +1192,15 @@ function deleteCardFromSlot() {
 /* ==========================================================================
    TELA DE TROCAS (TRADING SYSTEM)
    ========================================================================= */
-function loadTradeTab() {
-  populateMyCardsForTrade();
-  loadMarketTrades();
-  loadMyActiveTrades();
+async function loadTradeTab() {
+  await populateMyCardsForTrade();
+  await loadMarketTrades();
+  await loadMyActiveTrades();
 }
 
 // Popula a seleção com cartas do usuário (recomendando as repetidas e permitindo as únicas com aviso)
-function populateMyCardsForTrade() {
-  const collection = getCollection();
+async function populateMyCardsForTrade() {
+  const collection = await getCollection();
   const select = document.getElementById("trade-my-card");
   
   select.innerHTML = '<option value="" disabled selected>Selecione um card do seu fichário...</option>';
@@ -1077,7 +1260,7 @@ function populateMyCardsForTrade() {
 }
 
 // Publica proposta de troca
-function handleCreateTrade(e) {
+async function handleCreateTrade(e) {
   e.preventDefault();
   const selectIndex = parseInt(document.getElementById("trade-my-card").value);
   const wantedName = document.getElementById("trade-wanted-card").value.trim();
@@ -1087,15 +1270,13 @@ function handleCreateTrade(e) {
     return;
   }
 
-  const collection = getCollection();
+  const collection = await getCollection();
   const myCard = collection[selectIndex];
 
   if (!myCard || myCard.quantity < 1) {
     showToast("Operação inválida. Card indisponível para troca.", "error");
     return;
   }
-
-  const marketTrades = JSON.parse(localStorage.getItem("pokenot_market_trades")) || [];
   
   const newTrade = {
     id: `trade_${currentUser}_${Date.now()}`,
@@ -1113,17 +1294,16 @@ function handleCreateTrade(e) {
     status: "active"
   };
 
-  marketTrades.unshift(newTrade);
-  localStorage.setItem("pokenot_market_trades", JSON.stringify(marketTrades));
+  await dbAddTrade(newTrade);
 
   document.getElementById("form-create-trade").reset();
   
-  loadTradeTab();
+  await loadTradeTab();
   showToast("Proposta de troca publicada!", "success");
 }
 
-function loadMyActiveTrades() {
-  const marketTrades = JSON.parse(localStorage.getItem("pokenot_market_trades")) || [];
+async function loadMyActiveTrades() {
+  const marketTrades = await dbGetMarketTrades();
   const container = document.getElementById("my-active-trades");
   
   container.innerHTML = "";
@@ -1154,18 +1334,15 @@ function loadMyActiveTrades() {
   });
 }
 
-function cancelMyTrade(tradeId) {
-  let marketTrades = JSON.parse(localStorage.getItem("pokenot_market_trades")) || [];
-  marketTrades = marketTrades.filter(t => t.id !== tradeId);
-  localStorage.setItem("pokenot_market_trades", JSON.stringify(marketTrades));
-  
-  loadTradeTab();
+async function cancelMyTrade(tradeId) {
+  await dbCancelTrade(tradeId);
+  await loadTradeTab();
   showToast("Proposta cancelada.", "warning");
 }
 
 // Renderiza listagem do Mercado
-function loadMarketTrades() {
-  const marketTrades = JSON.parse(localStorage.getItem("pokenot_market_trades")) || [];
+async function loadMarketTrades() {
+  const marketTrades = await dbGetMarketTrades();
   const container = document.getElementById("market-trades-list");
   
   container.innerHTML = "";
@@ -1177,7 +1354,7 @@ function loadMarketTrades() {
     return;
   }
 
-  const collection = getCollection();
+  const collection = await getCollection();
 
   othersTrades.forEach(trade => {
     const card = document.createElement("div");
@@ -1249,14 +1426,14 @@ function loadMarketTrades() {
 }
 
 // Aceita propostas e atualiza os inventários persistidos
-function acceptTrade(tradeId) {
-  let marketTrades = JSON.parse(localStorage.getItem("pokenot_market_trades")) || [];
+async function acceptTrade(tradeId) {
+  const marketTrades = await dbGetMarketTrades();
   const tradeIdx = marketTrades.findIndex(t => t.id === tradeId);
   
   if (tradeIdx === -1) return;
   const trade = marketTrades[tradeIdx];
 
-  const collection = getCollection();
+  const collection = await getCollection();
   let wantedCardIndex = -1;
   const isOptional = !trade.wanted || trade.wanted === "Qualquer Card";
 
@@ -1327,11 +1504,21 @@ function acceptTrade(tradeId) {
     }
   }
 
-  saveCollection(collection);
+  await saveCollection(collection);
 
-  // 3. Atualizar inventário do outro usuário
-  const otherUserCollectionKey = `pokenot_collection_${trade.trainer}`;
-  let otherCollection = JSON.parse(localStorage.getItem(otherUserCollectionKey));
+  // 3. Sincronizar coleção do outro treinador
+  let otherCollection;
+  if (isFirebaseActive) {
+    try {
+      const doc = await db.collection("collections").doc(trade.trainer).get();
+      otherCollection = doc.exists ? doc.data().slots : new Array(36).fill(null);
+    } catch (e) {
+      console.error("Erro ao obter coleção do outro treinador no Firestore:", e);
+    }
+  } else {
+    const otherUserCollectionKey = `pokenot_collection_${trade.trainer}`;
+    otherCollection = JSON.parse(localStorage.getItem(otherUserCollectionKey));
+  }
   
   if (otherCollection) {
     // Retirar a carta do outro
@@ -1364,14 +1551,23 @@ function acceptTrade(tradeId) {
         };
       }
     }
-    localStorage.setItem(otherUserCollectionKey, JSON.stringify(otherCollection));
+    
+    if (isFirebaseActive) {
+      try {
+        await db.collection("collections").doc(trade.trainer).set({ slots: otherCollection });
+      } catch (e) {
+        console.error("Erro ao salvar coleção do outro treinador no Firestore:", e);
+      }
+    } else {
+      const otherUserCollectionKey = `pokenot_collection_${trade.trainer}`;
+      localStorage.setItem(otherUserCollectionKey, JSON.stringify(otherCollection));
+    }
   }
 
   // 4. Fechar negócio no Mercado
-  trade.status = "completed";
-  localStorage.setItem("pokenot_market_trades", JSON.stringify(marketTrades));
+  await dbCompleteTrade(tradeId, trade);
 
-  loadTradeTab();
+  await loadTradeTab();
   showToast(`Troca concluída! Você recebeu ${trade.offered.name}.`, "success");
 }
 
@@ -1426,8 +1622,9 @@ function searchOnLigaPokemon() {
    ========================================================================== */
 
 // Registra uma atividade no histórico de logs do usuário
-function addLogEntry(actionType, message, targetUser = currentUser) {
-  const users = JSON.parse(localStorage.getItem("pokenot_users")) || {};
+// Registra uma atividade no histórico de logs do usuário
+async function addLogEntry(actionType, message, targetUser = currentUser) {
+  const users = await dbGetUsers();
   if (!users[targetUser]) return;
   if (!users[targetUser].logs) users[targetUser].logs = [];
   
@@ -1443,22 +1640,21 @@ function addLogEntry(actionType, message, targetUser = currentUser) {
     users[targetUser].logs = users[targetUser].logs.slice(0, 50);
   }
   
-  localStorage.setItem("pokenot_users", JSON.stringify(users));
+  await dbSaveUser(targetUser, users[targetUser]);
 }
 
 // Salva a alteração da privacidade do fichário público/privado
-function togglePrivacySetting() {
+async function togglePrivacySetting() {
   const toggle = document.getElementById("settings-privacy-toggle");
-  const users = JSON.parse(localStorage.getItem("pokenot_users")) || {};
+  const users = await dbGetUsers();
   const user = users[currentUser];
   
   if (user) {
     user.allowPublicView = toggle.checked;
-    users[currentUser] = user;
-    localStorage.setItem("pokenot_users", JSON.stringify(users));
+    await dbSaveUser(currentUser, user);
     
     const statusText = toggle.checked ? "público (compartilhado)" : "privado (oculto)";
-    addLogEntry("sistema", `Configuração de privacidade alterada para ${statusText}.`);
+    await addLogEntry("sistema", `Configuração de privacidade alterada para ${statusText}.`);
     showToast(`Seu fichário agora está ${statusText}!`, "success");
   }
 }
@@ -1470,7 +1666,7 @@ async function handleChangePassword(e) {
   const newPwd = document.getElementById("settings-new-password").value;
   const confirmPwd = document.getElementById("settings-confirm-password").value;
   
-  const users = JSON.parse(localStorage.getItem("pokenot_users")) || {};
+  const users = await dbGetUsers();
   const user = users[currentUser];
   
   if (!user) {
@@ -1491,19 +1687,18 @@ async function handleChangePassword(e) {
   
   const hashedNew = await hashPassword(newPwd);
   user.password = hashedNew;
-  users[currentUser] = user;
-  localStorage.setItem("pokenot_users", JSON.stringify(users));
+  await dbSaveUser(currentUser, user);
   
   document.getElementById("form-change-password").reset();
-  addLogEntry("sistema", "Senha de acesso alterada com sucesso.");
-  loadSettingsTab();
+  await addLogEntry("sistema", "Senha de acesso alterada com sucesso.");
+  await loadSettingsTab();
   showToast("Senha atualizada com sucesso!", "success");
 }
 
 // Esvazia os logs de atividades do usuário
-function clearUserLogs() {
+async function clearUserLogs() {
   if (confirm("Tem certeza que deseja limpar todo o seu histórico de atividades?")) {
-    const users = JSON.parse(localStorage.getItem("pokenot_users")) || {};
+    const users = await dbGetUsers();
     const user = users[currentUser];
     if (user) {
       user.logs = [
@@ -1513,18 +1708,16 @@ function clearUserLogs() {
           message: "Histórico de atividades limpo."
         }
       ];
-      users[currentUser] = user;
-      localStorage.setItem("pokenot_users", JSON.stringify(users));
-      loadSettingsTab();
+      await dbSaveUser(currentUser, user);
+      await loadSettingsTab();
       showToast("Histórico de logs limpo.", "warning");
     }
   }
 }
 
 // Atualiza o painel de configurações
-// Atualiza o painel de configurações
-function loadSettingsTab() {
-  const users = JSON.parse(localStorage.getItem("pokenot_users")) || {};
+async function loadSettingsTab() {
+  const users = await dbGetUsers();
   const user = users[currentUser] || {};
   
   // 1. Atualizar Informações de Perfil
@@ -1615,19 +1808,18 @@ function loadSettingsTab() {
    ========================================================================== */
 
 // Carrega os treinadores públicos da Comunidade
-function loadCommunityTab() {
+async function loadCommunityTab() {
   const grid = document.getElementById("community-trainers-grid");
   if (!grid) return;
   grid.innerHTML = "";
 
-  const users = JSON.parse(localStorage.getItem("pokenot_users")) || {};
+  const users = await dbGetUsers();
   const trainers = [];
 
   // Adicionar usuários reais com privacidade ativa
-  Object.keys(users).forEach(username => {
+  for (const username of Object.keys(users)) {
     if (username !== currentUser && users[username].allowPublicView) {
-      const collectionKey = `pokenot_collection_${username}`;
-      const collection = JSON.parse(localStorage.getItem(collectionKey)) || [];
+      const collection = await getCollection(username);
       const totalCards = collection.reduce((acc, card) => acc + (card ? parseInt(card.quantity || 1) : 0), 0);
       
       trainers.push({
@@ -1636,7 +1828,7 @@ function loadCommunityTab() {
         totalCards: totalCards
       });
     }
-  });
+  }
 
   // Atualizar contador da comunidade
   document.getElementById("stats-public-trainers").textContent = `${trainers.length} Compartilhado${trainers.length !== 1 ? 's' : ''}`;
