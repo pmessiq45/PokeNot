@@ -906,26 +906,47 @@ function searchTcgCards(mode) {
   const simpleNumberMatch = query.match(/\b(\d+)\b/);
 
   if (slashNumberMatch) {
-    const cardNumber = slashNumberMatch[1];
+    let cardNumber = slashNumberMatch[1];
+    // Remove zeros à esquerda (ex: 012 -> 12), a menos que o número seja apenas "0"
+    if (cardNumber.length > 1) {
+      cardNumber = cardNumber.replace(/^0+/, "");
+    }
     let cardName = query.replace(slashNumberMatch[0], "").replace(/\s+/g, " ").trim();
     // Remove códigos de coleção uppercase com 3-4 caracteres (ex: CRI, SVP, sv6)
     cardName = cardName.replace(/\b[A-Z0-9]{3,4}\b/gi, "").replace(/\s+/g, " ").trim();
     if (cardName) {
-      apiQuery = `name:"${cardName}"* number:${cardNumber}`;
+      if (cardName.includes(" ")) {
+        apiQuery = `name:"${cardName}" number:${cardNumber}`;
+      } else {
+        apiQuery = `name:${cardName}* number:${cardNumber}`;
+      }
     } else {
       apiQuery = `number:${cardNumber}`;
     }
   } else if (simpleNumberMatch) {
-    const cardNumber = simpleNumberMatch[1];
+    let cardNumber = simpleNumberMatch[1];
+    // Remove zeros à esquerda (ex: 012 -> 12), a menos que o número seja apenas "0"
+    if (cardNumber.length > 1) {
+      cardNumber = cardNumber.replace(/^0+/, "");
+    }
     let cardName = query.replace(simpleNumberMatch[0], "").replace(/\s+/g, " ").trim();
     cardName = cardName.replace(/\b[A-Z0-9]{3,4}\b/gi, "").replace(/\s+/g, " ").trim();
     if (cardName) {
-      apiQuery = `name:"${cardName}"* number:${cardNumber}`;
+      if (cardName.includes(" ")) {
+        apiQuery = `name:"${cardName}" number:${cardNumber}`;
+      } else {
+        apiQuery = `name:${cardName}* number:${cardNumber}`;
+      }
     } else {
       apiQuery = `number:${cardNumber}`;
     }
   } else {
-    apiQuery = `name:${query}*`;
+    // Para buscas textuais simples sem número
+    if (query.includes(" ")) {
+      apiQuery = `name:"${query}"`;
+    } else {
+      apiQuery = `name:${query}*`;
+    }
   }
 
   // Realizar requisição para API (sem necessidade de API key para taxas moderadas)
