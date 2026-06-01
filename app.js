@@ -5,12 +5,12 @@ const GOOGLE_CLIENT_ID = "SEU_CLIENT_ID_DO_GOOGLE.apps.googleusercontent.com"; /
 
 // Credenciais do Firebase Firestore (Insira aqui as chaves do seu projeto Firebase)
 const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyB9_0Hcf9mNyj075ZfXkP6kPlHOSJBVfHI",
+  authDomain: "pokenot-db.firebaseapp.com",
+  projectId: "pokenot-db",
+  storageBucket: "pokenot-db.firebasestorage.app",
+  messagingSenderId: "606255297926",
+  appId: "1:606255297926:web:ee0b18d9afdabba6c3e807"
 };
 
 // Detecção de status de banco de dados
