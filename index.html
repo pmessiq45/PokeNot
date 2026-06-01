@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PokeNot - Meu Fichário de Cards Pokémon</title>
+  <!-- Google Fonts: Inter e Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Identity Services (OAuth) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Background Canvas for Interactive Particles/Effects -->
+  <div class="bg-gradient-mesh"></div>
+
+  <!-- Application Shell -->
+  <div id="app-container">
+
+    <!-- Header (Visível apenas após login) -->
+    <header id="app-header" class="hidden">
+      <div class="header-container">
+        <div class="brand">
+          <div class="logo-icon">
+            <div class="pokeball-logo"></div>
+          </div>
+          <h1>Poke<span>Not</span></h1>
+        </div>
+        
+        <nav class="nav-tabs">
+          <button id="tab-binder" class="nav-btn active" onclick="switchTab('binder')">
+            <i class="fa-solid fa-book-open"></i> Fichário
+          </button>
+          <button id="tab-trade" class="nav-btn" onclick="switchTab('trade')">
+            <i class="fa-solid fa-right-left"></i> Trocas
+          </button>
+          <button id="tab-community" class="nav-btn" onclick="switchTab('community')">
+            <i class="fa-solid fa-users"></i> Outros Fichários
+          </button>
+          <button id="tab-settings" class="nav-btn" onclick="switchTab('settings')">
+            <i class="fa-solid fa-gear"></i> Configurações
+          </button>
+        </nav>
+
+        <div class="user-profile">
+          <div class="user-info">
+            <span class="user-avatar" id="header-avatar">P</span>
+            <span class="user-name" id="header-username">Treinador</span>
+          </div>
+          <button id="btn-logout" class="btn btn-icon btn-logout" title="Sair da Conta">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN VIEW CONTAINER -->
+    <main id="main-content">
+
+      <!-- 1. TELA DE LOGIN -->
+      <section id="screen-login" class="screen-section">
+        <div class="login-card-container">
+          <div class="login-decor">
+            <div class="decor-circle circle-1"></div>
+            <div class="decor-circle circle-2"></div>
+          </div>
+          
+          <div class="login-card">
+            <div class="login-header">
+              <div class="pokeball-animation">
+                <div class="pokeball-top"></div>
+                <div class="pokeball-center-button"></div>
+                <div class="pokeball-bottom"></div>
+              </div>
+              <h2>PokeNot</h2>
+              <p>Gerencie sua coleção e troque cards repetidos!</p>
+            </div>
+
+            <div class="login-tabs">
+              <button id="btn-tab-signin" class="login-tab-btn active" onclick="switchLoginTab('signin')">Entrar</button>
+              <button id="btn-tab-signup" class="login-tab-btn" onclick="switchLoginTab('signup')">Criar Conta</button>
+            </div>
+
+            <!-- Form: Login -->
+            <form id="form-signin" class="login-form">
+              <div class="form-group">
+                <label for="signin-username"><i class="fa-solid fa-user"></i> Nome de Treinador</label>
+                <input type="text" id="signin-username" required placeholder="Digite seu nome de usuário" autocomplete="username">
+              </div>
+              <div class="form-group">
+                <label for="signin-password"><i class="fa-solid fa-lock"></i> Senha</label>
+                <input type="password" id="signin-password" required placeholder="Sua senha secreta" autocomplete="current-password">
+              </div>
+              <div id="signin-error" class="form-error hidden">Usuário ou senha incorretos.</div>
+              <button type="submit" class="btn btn-primary btn-block">Iniciar Aventura <i class="fa-solid fa-play"></i></button>
+            </form>
+
+            <!-- Form: Cadastro -->
+            <form id="form-signup" class="login-form hidden">
+              <div class="form-group">
+                <label for="signup-username"><i class="fa-solid fa-user"></i> Nome de Treinador</label>
+                <input type="text" id="signup-username" required placeholder="Como quer ser chamado?" minlength="3" autocomplete="username">
+              </div>
+              <div class="form-group">
+                <label for="signup-password"><i class="fa-solid fa-lock"></i> Senha</label>
+                <input type="password" id="signup-password" required placeholder="Crie uma senha forte" minlength="4" autocomplete="new-password">
+              </div>
+              <div id="signup-error" class="form-error hidden">Nome de usuário já está em uso.</div>
+              <button type="submit" class="btn btn-success btn-block">Criar Minha Conta <i class="fa-solid fa-user-plus"></i></button>
+            </form>
+
+            <!-- Google OAuth Integration -->
+            <div class="google-login-separator">
+              <span>ou</span>
+            </div>
+            <div class="google-btn-container">
+              <div id="google-signin-btn"></div>
+            </div>
+
+            <div class="login-footer">
+              <p>Coleção protegida localmente <i class="fa-solid fa-shield-halved"></i></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. TELA DE FICHÁRIO -->
+      <section id="screen-binder" class="screen-section hidden">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <h2><i class="fa-solid fa-book"></i> Meu Fichário</h2>
+            <span class="stats-badge" id="stats-total-cards">0 / 0 Cards</span>
+            <span class="stats-badge shiny-badge" id="stats-shiny-cards"><i class="fa-solid fa-sparkles"></i> 0 Shiny</span>
+            <button class="btn btn-sm btn-secondary" onclick="organizeBinder()" style="margin-left: 0.5rem; background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.3); color: #60a5fa;" title="Reajustar sequência de cartas eliminando espaços vazios">
+              <i class="fa-solid fa-sort-amount-down"></i> Organizar
+            </button>
+          </div>
+          
+          <div class="toolbar-right">
+            <div class="search-filter-box">
+              <i class="fa-solid fa-magnifying-glass search-icon"></i>
+              <input type="text" id="binder-search" placeholder="Buscar no fichário..." oninput="filterBinder()">
+            </div>
+            <select id="binder-filter-type" onchange="filterBinder()">
+              <option value="all">Todos os Tipos</option>
+              <option value="Grass">Planta</option>
+              <option value="Fire">Fogo</option>
+              <option value="Water">Água</option>
+              <option value="Electric">Elétrico</option>
+              <option value="Normal">Normal</option>
+              <option value="Psychic">Psíquico</option>
+              <option value="Fighting">Lutador</option>
+              <option value="Ghost">Fantasma</option>
+              <option value="Dragon">Dragão</option>
+              <option value="shiny">Apenas Shinies</option>
+              <option value="repeated">Apenas Repetidos</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Banner de Modo Leitura (Exibido apenas quando visualizando fichário de outro usuário) -->
+        <div id="binder-readonly-banner" class="readonly-banner hidden">
+          <div class="banner-content">
+            <i class="fa-solid fa-eye animate-pulse" style="color: #60a5fa;"></i>
+            <span>Você está visualizando o fichário de <strong id="readonly-trainer-name">Treinador</strong> (Modo de Leitura)</span>
+          </div>
+          <button class="btn btn-sm btn-secondary" onclick="exitReadonlyBinder()" style="background: rgba(96, 165, 250, 0.15); border-color: rgba(96, 165, 250, 0.3); color: #60a5fa;">
+            <i class="fa-solid fa-arrow-left"></i> Voltar para Meu Fichário
+          </button>
+        </div>
+
+        <!-- O FICHÁRIO TRIDIMENSIONAL -->
+        <div class="binder-wrapper">
+          <div class="binder-spine"></div>
+          
+          <!-- Capa interna esquerda -->
+          <div class="binder-page-container page-left">
+            <div class="binder-page">
+              <!-- Grid 4x3 - Parte Esquerda (Primeiras 6 posições da página ativa) -->
+              <div class="slots-grid grid-left" id="grid-left-slots">
+                <!-- Preenchido via JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Anéis do Fichário centralizado -->
+          <div class="binder-rings">
+            <div class="ring"></div>
+            <div class="ring"></div>
+            <div class="ring"></div>
+            <div class="ring"></div>
+          </div>
+
+          <!-- Capa interna direita -->
+          <div class="binder-page-container page-right">
+            <div class="binder-page">
+              <!-- Grid 4x3 - Parte Direita (Seguintes 6 posições da página ativa) -->
+              <div class="slots-grid grid-right" id="grid-right-slots">
+                <!-- Preenchido via JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Controles de Página do Fichário -->
+        <div class="binder-pagination">
+          <button id="btn-prev-page" class="btn btn-secondary" onclick="changePage(-1)">
+            <i class="fa-solid fa-chevron-left"></i> Anterior
+          </button>
+          <span class="page-indicator" id="binder-page-number">Página 1</span>
+          <button id="btn-next-page" class="btn btn-secondary" onclick="changePage(1)">
+            Próxima <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+      </section>
+
+      <!-- 3. TELA DE TROCAS -->
+      <section id="screen-trade" class="screen-section hidden">
+        <div class="trade-container">
+          
+          <!-- Coluna da Esquerda: Minhas Trocas / Criar Oferta -->
+          <div class="trade-column user-trades-panel">
+            <div class="panel-header">
+              <h3><i class="fa-solid fa-circle-plus"></i> Criar Nova Proposta</h3>
+            </div>
+            
+            <div class="panel-body">
+              <p class="panel-desc">Ofereça um card repetido do seu fichário em troca do card que você tanto procura!</p>
+              
+              <form id="form-create-trade" class="create-trade-form">
+                <div class="form-group">
+                  <label for="trade-my-card"><i class="fa-solid fa-gift"></i> Seu Card (Apenas Repetidos)</label>
+                  <select id="trade-my-card" required>
+                    <option value="" disabled selected>Selecione um card do seu fichário...</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label for="trade-wanted-card"><i class="fa-solid fa-magnifying-glass"></i> Card Desejado (Opcional)</label>
+                  <input type="text" id="trade-wanted-card" placeholder="Qual Pokémon você quer receber? (Vazio para qualquer card)" list="pokemon-suggestions">
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block">Publicar Proposta <i class="fa-solid fa-paper-plane"></i></button>
+              </form>
+            </div>
+
+            <div class="panel-header" style="margin-top: 2rem;">
+              <h3><i class="fa-solid fa-user-tag"></i> Minhas Ofertas Ativas</h3>
+            </div>
+            <div class="panel-body compact-scroll" id="my-active-trades">
+              <!-- Preenchido via JS -->
+              <p class="empty-text">Você não possui ofertas ativas de troca.</p>
+            </div>
+          </div>
+
+          <!-- Coluna da Direita: Mercado de Trocas (Propostas Globais de NPCs/Outros Usuários) -->
+          <div class="trade-column global-market-panel">
+            <div class="panel-header">
+              <h3><i class="fa-solid fa-shop"></i> Mercado de Trocas Ativas</h3>
+              <button id="btn-refresh-trades" class="btn btn-sm btn-secondary" onclick="loadMarketTrades()">
+                <i class="fa-solid fa-rotate"></i> Atualizar
+              </button>
+            </div>
+            
+            <div class="panel-body">
+              <p class="panel-desc">Veja abaixo as propostas de outros treinadores. Se você tiver o card oferecido e quiser o card desejado, conclua a troca instantaneamente!</p>
+              
+              <div class="market-trades-grid" id="market-trades-list">
+                <!-- Preenchido via JS -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 4. TELA DE OUTROS FICHÁRIOS (COMUNIDADE) -->
+      <section id="screen-community" class="screen-section hidden">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <h2><i class="fa-solid fa-users"></i> Fichários da Comunidade</h2>
+            <span class="stats-badge" id="stats-public-trainers">0 Compartilhados</span>
+          </div>
+          <div class="toolbar-right">
+            <button id="btn-refresh-community" class="btn btn-sm btn-secondary" onclick="loadCommunityTab()">
+              <i class="fa-solid fa-rotate"></i> Atualizar Lista
+            </button>
+          </div>
+        </div>
+
+        <div class="community-container">
+          <div class="trainers-grid" id="community-trainers-grid">
+            <!-- Cards de Treinadores injetados via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. TELA DE CONFIGURAÇÕES -->
+      <section id="screen-settings" class="screen-section hidden">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <h2><i class="fa-solid fa-gear"></i> Configurações de Treinador</h2>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Coluna Esquerda: Segurança e Privacidade -->
+          <div class="settings-card panel-left">
+            <div class="panel-header">
+              <h3><i class="fa-solid fa-shield-halved"></i> Perfil e Segurança</h3>
+            </div>
+            <div class="panel-body">
+              <!-- Informações do Perfil de Treinador -->
+              <div class="settings-profile-card">
+                <div class="settings-avatar-large" id="settings-profile-avatar">T</div>
+                <div class="settings-profile-details">
+                  <h4 id="settings-profile-fullname">Nome do Treinador</h4>
+                  <p id="settings-profile-email">email@exemplo.com</p>
+                  <span class="account-type-badge" id="settings-profile-type">Conta Local</span>
+                </div>
+              </div>
+
+              <!-- Divisor -->
+              <div class="settings-divider"></div>
+
+              <!-- Switch de Privacidade -->
+              <div class="settings-privacy-box">
+                <div class="privacy-info">
+                  <strong>Fichário Público</strong>
+                  <p>Permitir que meu fichário seja visualizado por outros treinadores na aba "Outros Fichários".</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="settings-privacy-toggle" onchange="togglePrivacySetting()">
+                  <span class="slider round"></span>
+                </label>
+              </div>
+
+              <!-- Divisor -->
+              <div class="settings-divider"></div>
+
+              <!-- Seção de Alterar Senha (Para Contas Locais) -->
+              <div id="settings-password-section">
+                <h4 style="margin-bottom: 1rem;"><i class="fa-solid fa-key"></i> Alterar Senha</h4>
+                <form id="form-change-password" class="settings-form">
+                  <div class="form-group">
+                    <label for="settings-current-password">Senha Atual</label>
+                    <input type="password" id="settings-current-password" required placeholder="Digite sua senha atual">
+                  </div>
+                  <div class="form-group">
+                    <label for="settings-new-password">Nova Senha</label>
+                    <input type="password" id="settings-new-password" required placeholder="Nova senha (mínimo 4 caracteres)" minlength="4">
+                  </div>
+                  <div class="form-group">
+                    <label for="settings-confirm-password">Confirmar Nova Senha</label>
+                    <input type="password" id="settings-confirm-password" required placeholder="Confirme a nova senha" minlength="4">
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-block" style="margin-top: 0.5rem;">Atualizar Senha <i class="fa-solid fa-save"></i></button>
+                </form>
+              </div>
+
+              <!-- Aviso para Contas Google -->
+              <div id="settings-google-notice" class="google-account-notice hidden">
+                <i class="fa-brands fa-google text-google"></i>
+                <div>
+                  <strong>Sua conta está vinculada ao Google</strong>
+                  <p>A segurança e as credenciais são gerenciadas diretamente pela sua conta Google. Não é necessário definir uma senha local.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Coluna Direita: Log de Registro de Atividades -->
+          <div class="settings-card panel-right">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <h3><i class="fa-solid fa-clock-rotate-left"></i> Histórico de Atividades</h3>
+              <button class="btn btn-sm btn-danger" onclick="clearUserLogs()" title="Limpar histórico de atividades" style="background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #f87171;">
+                <i class="fa-solid fa-trash-can"></i> Limpar
+              </button>
+            </div>
+            <div class="panel-body compact-scroll" style="padding: 1rem; max-height: 480px; overflow-y: auto;">
+              <div class="logs-feed" id="settings-logs-list">
+                <!-- Logs injetados via JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Datalist para autocompletar nomes de Pokémons -->
+    <datalist id="pokemon-suggestions">
+      <!-- Preenchido via JS -->
+    </datalist>
+
+    <!-- MODAL: ADICIONAR CARD -->
+    <div id="modal-add-card" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-plus-circle"></i> Adicionar Card ao Slot <span id="add-slot-index">0</span></h3>
+          <button class="modal-close" onclick="closeModal('add')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Bloco de Busca TCG -->
+          <div class="tcg-search-section">
+            <label for="add-search-input"><i class="fa-solid fa-magnifying-glass"></i> Buscar Estampa no Pokémon TCG API</label>
+            <div class="search-input-row">
+              <input type="text" id="add-search-input" placeholder="Digite o nome (Ex: Pikachu, Sprigatito, Charizard)...">
+              <button type="button" class="btn btn-primary" onclick="searchTcgCards('add')">
+                <i class="fa-solid fa-search"></i> Buscar
+              </button>
+            </div>
+            <!-- Grid de resultados de busca (Scroll horizontal ou grid compacto) -->
+            <div class="search-results-wrapper hidden" id="add-search-results-wrapper">
+              <span class="search-results-title">Selecione uma versão de carta encontrada:</span>
+              <div class="search-results-grid" id="add-search-results">
+                <!-- Injetado via JS -->
+              </div>
+            </div>
+          </div>
+
+          <form id="form-add-card" style="margin-top: 1.5rem;">
+            <div class="modal-flex-layout">
+              
+              <!-- Card Preview (Visual do Card Pokémon real) -->
+              <div class="card-preview-container">
+                <div class="pokemon-card-preview-img-container" id="add-card-preview">
+                  <img id="add-preview-img" src="https://images.pokemontcg.io/cardback.png" alt="Card Preview" onerror="this.src='https://images.pokemontcg.io/cardback.png'">
+                  <div class="shiny-overlay"></div>
+                </div>
+              </div>
+
+              <!-- Formulário de Detalhes -->
+              <div class="card-details-form">
+                <div class="form-group">
+                  <label for="add-card-name"><i class="fa-solid fa-font"></i> Nome do Pokémon</label>
+                  <input type="text" id="add-card-name" required placeholder="Ex: Sprigatito">
+                </div>
+
+                <div class="form-group">
+                  <label for="add-card-image"><i class="fa-solid fa-link"></i> Link de Imagem ou Arquivo Local</label>
+                  <div class="image-source-row" style="display: flex; gap: 0.5rem;">
+                    <input type="url" id="add-card-image" required placeholder="Cole o link da imagem ou clique no botão de upload ao lado" oninput="updateCardPreviewUrl('add')" style="flex: 1;">
+                    <label class="btn btn-secondary" style="padding: 0.75rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Carregar imagem do computador">
+                      <i class="fa-solid fa-upload"></i>
+                      <input type="file" id="add-card-file" accept="image/*" onchange="handleLocalFileSelect('add')" style="display: none;">
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="add-card-type">Tipo para Filtro</label>
+                    <select id="add-card-type" required>
+                      <option value="Normal">Normal</option>
+                      <option value="Fire">Fogo (Fire)</option>
+                      <option value="Water">Água (Water)</option>
+                      <option value="Grass">Planta (Grass)</option>
+                      <option value="Electric">Elétrico (Electric)</option>
+                      <option value="Psychic">Psíquico (Psychic)</option>
+                      <option value="Fighting">Lutador (Fighting)</option>
+                      <option value="Ghost">Fantasma (Ghost)</option>
+                      <option value="Dragon">Dragão (Dragon)</option>
+                      <option value="Steel">Aço (Steel)</option>
+                      <option value="Fairy">Fada (Fairy)</option>
+                    </select>
+                  </div>
+                  
+                  <div class="form-group flex-checkbox">
+                    <label for="add-card-shiny" class="checkbox-label">
+                      <input type="checkbox" id="add-card-shiny" onchange="toggleShinyOverlay('add')">
+                      <span><i class="fa-solid fa-sparkles text-shiny"></i> Shiny / Foil</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="add-card-set"><i class="fa-solid fa-layer-group"></i> Coleção / Expansão</label>
+                    <input type="text" id="add-card-set" placeholder="Ex: Scarlet & Violet Promos (auto-preenche)">
+                  </div>
+                  <div class="form-group">
+                    <label for="add-card-number"><i class="fa-solid fa-hashtag"></i> Número da Carta</label>
+                    <input type="text" id="add-card-number" placeholder="Ex: 034/086 (auto-preenche)">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="add-card-qty">Quantidade Inicial</label>
+                    <input type="number" id="add-card-qty" required min="1" value="1">
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="add-card-notes"><i class="fa-solid fa-comment-dots"></i> Notas / Observações</label>
+                    <input type="text" id="add-card-notes" placeholder="Ex: SVP 001 Promo, em ótimo estado">
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-success btn-block" style="margin-top: 0.5rem;">Registrar Card no Fichário <i class="fa-solid fa-circle-check"></i></button>
+              </div>
+
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: DETALHES / EDITAR CARD -->
+    <div id="modal-edit-card" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-circle-info"></i> Detalhes do Card - Slot <span id="edit-slot-index">0</span></h3>
+          <button class="modal-close" onclick="closeModal('edit')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Bloco de Busca TCG na Edição -->
+          <div class="tcg-search-section">
+            <label for="edit-search-input"><i class="fa-solid fa-magnifying-glass"></i> Alterar Estampa (Buscar no TCG API)</label>
+            <div class="search-input-row">
+              <input type="text" id="edit-search-input" placeholder="Digite o nome da carta para alterar...">
+              <button type="button" class="btn btn-primary" onclick="searchTcgCards('edit')">
+                <i class="fa-solid fa-search"></i> Buscar
+              </button>
+            </div>
+            <div class="search-results-wrapper hidden" id="edit-search-results-wrapper">
+              <span class="search-results-title">Selecione uma versão de carta encontrada:</span>
+              <div class="search-results-grid" id="edit-search-results">
+                <!-- Injetado via JS -->
+              </div>
+            </div>
+          </div>
+
+          <form id="form-edit-card" style="margin-top: 1.5rem;">
+            <div class="modal-flex-layout">
+              
+              <!-- Card Preview (Visual do Card Pokémon real) -->
+              <div class="card-preview-container">
+                <div class="pokemon-card-preview-img-container" id="edit-card-preview">
+                  <img id="edit-preview-img" src="https://images.pokemontcg.io/cardback.png" alt="Card Preview" onerror="this.src='https://images.pokemontcg.io/cardback.png'">
+                  <div class="shiny-overlay"></div>
+                </div>
+              </div>
+
+              <!-- Formulário de Edição -->
+              <div class="card-details-form">
+                <div class="form-group">
+                  <label for="edit-card-name"><i class="fa-solid fa-font"></i> Nome do Pokémon</label>
+                  <input type="text" id="edit-card-name" required placeholder="Ex: Sprigatito">
+                </div>
+
+                <div class="form-group">
+                  <label for="edit-card-image"><i class="fa-solid fa-link"></i> Link de Imagem ou Arquivo Local</label>
+                  <div class="image-source-row" style="display: flex; gap: 0.5rem;">
+                    <input type="url" id="edit-card-image" required placeholder="Cole o link da imagem ou clique no botão de upload ao lado" oninput="updateCardPreviewUrl('edit')" style="flex: 1;">
+                    <label class="btn btn-secondary" style="padding: 0.75rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Carregar imagem do computador">
+                      <i class="fa-solid fa-upload"></i>
+                      <input type="file" id="edit-card-file" accept="image/*" onchange="handleLocalFileSelect('edit')" style="display: none;">
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="edit-card-type">Tipo para Filtro</label>
+                    <select id="edit-card-type" required>
+                      <option value="Normal">Normal</option>
+                      <option value="Fire">Fogo (Fire)</option>
+                      <option value="Water">Água (Water)</option>
+                      <option value="Grass">Planta (Grass)</option>
+                      <option value="Electric">Elétrico (Electric)</option>
+                      <option value="Psychic">Psíquico (Psychic)</option>
+                      <option value="Fighting">Lutador (Fighting)</option>
+                      <option value="Ghost">Fantasma (Ghost)</option>
+                      <option value="Dragon">Dragão (Dragon)</option>
+                      <option value="Steel">Aço (Steel)</option>
+                      <option value="Fairy">Fada (Fairy)</option>
+                    </select>
+                  </div>
+                  
+                  <div class="form-group flex-checkbox">
+                    <label for="edit-card-shiny" class="checkbox-label">
+                      <input type="checkbox" id="edit-card-shiny" onchange="toggleShinyOverlay('edit')">
+                      <span><i class="fa-solid fa-sparkles text-shiny"></i> Shiny / Foil</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="edit-card-set"><i class="fa-solid fa-layer-group"></i> Coleção / Expansão</label>
+                    <input type="text" id="edit-card-set" placeholder="Ex: Scarlet & Violet Promos (auto-preenche)">
+                  </div>
+                  <div class="form-group">
+                    <label for="edit-card-number"><i class="fa-solid fa-hashtag"></i> Número da Carta</label>
+                    <input type="text" id="edit-card-number" placeholder="Ex: 034/086 (auto-preenche)">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="edit-card-qty">Quantidade em Coleção</label>
+                    <input type="number" id="edit-card-qty" required min="0">
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-card-notes"><i class="fa-solid fa-comment-dots"></i> Notas / Observações</label>
+                    <input type="text" id="edit-card-notes" placeholder="Ex: Em ótimo estado">
+                  </div>
+                </div>
+
+                <div class="edit-modal-buttons">
+                  <button type="button" class="btn btn-danger" onclick="deleteCardFromSlot()"><i class="fa-solid fa-trash"></i> Remover Slot</button>
+                  <button type="button" class="btn btn-primary" onclick="searchOnLigaPokemon()" style="background-color: #1b5e20; border-color: #1b5e20; box-shadow: 0 4px 14px rgba(27, 94, 32, 0.35);" title="Ver preços desta carta no Brasil"><i class="fa-solid fa-shop"></i> LigaPokémon BR</button>
+                  <button type="submit" class="btn btn-success"><i class="fa-solid fa-save"></i> Salvar</button>
+                </div>
+              </div>
+
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOTIFICAÇÃO TOAST POPUP (Para feedback de ações) -->
+    <div id="toast-container" class="toast-container"></div>
+
+  </div>
+
+  <!-- Custom Scripts -->
+  <script src="app.js"></script>
+</body>
+</html>
