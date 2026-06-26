@@ -1,7 +1,7 @@
 /* ==========================================================================
    STATE MANAGEMENT & GLOBAL CONFIG
    ========================================================================== */
-const GOOGLE_CLIENT_ID = "SEU_CLIENT_ID_DO_GOOGLE.apps.googleusercontent.com"; // Insira aqui seu Client ID real do Google Cloud Console
+const GOOGLE_CLIENT_ID = "SEU_CLIENT_ID_DO_GOOGLE.apps.googleusercontent.com";
 
 // Credenciais do Firebase Firestore (Insira aqui as chaves do seu projeto Firebase)
 const firebaseConfig = {
